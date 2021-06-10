@@ -69,7 +69,7 @@ class WorkerThread(threading.Thread):
                 time.sleep(0.05)
                 if sub.poll() == None:
                     #process has not termintaed yet.
-                    time.sleep(self.interval-(0.05*2))
+                    time.sleep(max(0,self.interval-0.01))
                     if sub.poll() == None:
                         sub.terminate()
                 (stdout, stderr) = sub.communicate()
