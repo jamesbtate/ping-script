@@ -33,13 +33,14 @@ def stderr(*strings, **kwargs):
     sys.stderr.flush()
 
 class WorkerThread(threading.Thread):
-    def __init__(self, host, name, lock, result, ping=True):
+    def __init__(self, host, name, lock, result, ping=True, interval=INTERVAL):
         threading.Thread.__init__(self)
         self.host = host
         self.name = name
         self.lock = lock
         self.result = result
         self.ping = ping
+        self.interval = interval
         self.success = 0
         self.oldsuccess = 0
         self.fail = 0
@@ -59,8 +60,8 @@ class WorkerThread(threading.Thread):
     def run(self):
         startTime = 0
         while True:
-            if time.time() - startTime < INTERVAL:
-                time.sleep(max(0,INTERVAL - (time.time() - startTime)))
+            if time.time() - startTime < self.interval:
+                time.sleep(max(0,self.interval - (time.time() - startTime)))
             startTime = time.time()
             if self.ping:
                 commandLine = "/bin/ping -W 1 -c 1 %s" %(self.host)
@@ -68,7 +69,7 @@ class WorkerThread(threading.Thread):
                 time.sleep(0.05)
                 if sub.poll() == None:
                     #process has not termintaed yet.
-                    time.sleep(INTERVAL-(0.05*2))
+                    time.sleep(self.interval-(0.05*2))
                     if sub.poll() == None:
                         sub.terminate()
                 (stdout, stderr) = sub.communicate()
@@ -168,6 +169,7 @@ def parseArgs():
     parser.add_argument("ping_target", nargs="*", help="Hostname or address to ping")
     parser.add_argument("-w", "--www-target", action="append", metavar="www-target", help="Hostname or address to curl")
     parser.add_argument("-s", "--https-target", action="append", metavar="https-target", help="Hostname or address to curl (https)")
+    parser.add_argument("-i", "--action-interval", type=int, metavar='millis', help="Time between pings/curls in milliseconds")
     args = parser.parse_args()
     #print(args)
     if not args.ping_target and not args.www_target and not args.https_target:
@@ -217,10 +219,12 @@ curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
 
 beep = True
 worker = 0
+if args.action_interval:
+    INTERVAL = args.action_interval / 1000.0
 print('starting')
 for host,name in zip(PING_HOSTS,PING_NAMES):
     print('creating worker ping', host)
-    t = WorkerThread(host,name,threading.Lock(),[],True)
+    t = WorkerThread(host,name,threading.Lock(),[],True, interval=INTERVAL)
     t.daemon = True
     t.start()
     WORKERS.append(t)
